@@ -1,5 +1,7 @@
 --ench.lua
 
+--ench.lua
+
 _G.ench = {}
 ench.key = "12345678"
 
