@@ -52,7 +52,7 @@ while true do
   if msg.motive == kConf.keywords_timeout then
     ench.key = msg.key
     print(tostring(msg.key))
-    m:transmit(sid,hid,ench.enchtable{motive=kConf.keywords_refresh,os=1,session=session})
+    m:transmit(sid,hid,ench.enchtable{motive=kConf.keywords_refresh,os=os.getComputerID(),session=session})
     print("Timeout.")
   end
 end
