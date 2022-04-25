@@ -1,5 +1,7 @@
 --base.lua
 
+--base.lua
+
 --Check version
 local vurl = "https://raw.githubusercontent.com/NievilliS/CC-Stillnet/master/Stillnet/version"
 local httpinst = http.get(vurl)
@@ -9,7 +11,7 @@ if httpinst then
 end
 
 local file = fs.open("./Stillnet/version","r")
-local tver = file.readLine()
+local tver = file.readAll():gsub("[^0-9.]","")
 file.close()
 
 if ver then
