@@ -1,0 +1,51 @@
+local max = 20
+
+local key
+
+local function recNest(index,a,b)
+  local cur = key
+  for t = 0, 255 do
+    key = cur .. string.char(t)
+    if index > 1 then
+      local ret = recNest(index-1,a,b)
+      if ret then
+        return ret
+      end
+      if index > 2 then
+        sleep()
+      end
+    else
+      ench.key = key
+      if a == ench.ench(b) then
+        return key
+      end
+    end
+  end
+end
+
+local slen = 0
+
+local function _y(a,b)
+  for len = 1, max do
+    key = ""
+    slen = len
+    local x = recNest(len,a,b)
+    if x then
+      return x
+    end
+  end
+end
+
+function omega(a,b)
+  local tx, ty = term.getCursorPos()
+  term.clearLine()
+  local ts
+  parallel.waitForAny(function()ts = _y(a,b)end,function()
+    while true do
+      term.setCursorPos(1,ty)
+      term.write("Status - Len: "..slen.." - Key: "..key)
+      sleep(.1)
+    end
+  end)
+  return ts
+end
