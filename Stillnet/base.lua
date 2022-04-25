@@ -1,7 +1,3 @@
---base.lua
-
---base.lua
-
 --Check version
 local vurl = "https://raw.githubusercontent.com/NievilliS/CC-Stillnet/master/Stillnet/version"
 local httpinst = http.get(vurl)
@@ -70,6 +66,7 @@ end
 --Broadcast enable/disable
 function stillnet:allowBroadcast(state)
   state = state or self.broadcast_enable
+  self.broadcast_enable = state
 end
 
 --Opens channel to ID
