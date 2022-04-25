@@ -1,4 +1,4 @@
---Pastebin URL: http://pastebin.com/NRz3nxru
+--Pastebin URL: http://pastebin.com/sEse49Dz
 
 local hPack = http.get"https://raw.githubusercontent.com/NievilliS/CC-Stillnet/master/stillnet.pack"
 local hInst = http.get"https://raw.githubusercontent.com/NievilliS/CC-Stillnet/master/pack-installer.lua"
