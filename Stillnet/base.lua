@@ -9,7 +9,7 @@ if httpinst then
 end
 
 local file = fs.open("./Stillnet/version","r")
-local tver = file.readLine()
+local tver = file.readAll():gsub("[^0-9.]","")
 file.close()
 
 if ver then
