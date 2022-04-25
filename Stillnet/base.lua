@@ -1,8 +1,31 @@
+--base.lua
+
+--Check version
+local vurl = "https://raw.githubusercontent.com/NievilliS/CC-Stillnet/master/Stillnet/version"
+local httpinst = http.get(vurl)
+if httpinst then
+  local ver = httpinst.readAll()
+  httpinst.close()
+end
+
+local file = fs.open("./Stillnet/version","r")
+local tver = file.readLine()
+file.close()
+
+if ver then
+  if tonumber(ver) > tonumber(tver) then
+    print"New Stillnet version available!\nRun Stillnet/update.lua to update"
+    sleep(3) --Sleep to make it annoying to wait
+  end
+end
+
 --Load Libraries
-shell.run"Stillnet/config"
+shell.run"Stillnet/config.lua"
+shell.run"Stillnet/ench.lua"
 
 --Global init
 _G.stillnet = {}
+stillnet._version = tver
 local dt = {}
 stillnet.broadcast_id = rednet.CHANNEL_BROADCAST
 stillnet.repeat_id = rednet.CHANNEL_REPEAT
