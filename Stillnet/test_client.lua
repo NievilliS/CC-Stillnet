@@ -1,4 +1,6 @@
-local m = stillnet:scan().back
+--test_client.lua
+
+local m = stillnet:scan().top
 local sid = tonumber(({...})[1] or os.getComputerID())
 
 m:open(sid)
