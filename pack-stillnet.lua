@@ -7,7 +7,7 @@ for _,v in pairs(list) do
   output_file.write("\000\001\002")
   output_file.write(v)
   output_file.write("\n\n")
-  output_file.write(file.readAll())
+  output_file.write(file.readAll():gsub("%-%-"..v.."[\n]+",""))
   output_file.write("\n\n")
   file.close()
 end

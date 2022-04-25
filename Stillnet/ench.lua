@@ -38,7 +38,7 @@ local function getN(i)
   return ench.key:sub(i,i):byte()
 end
 
-function ench.ench(x,notsw)
+function ench.ench(x)
   local tp = {}
   for i,v in pairs(string.tca(x)) do
     local n = v:byte()
@@ -50,14 +50,6 @@ function ench.ench(x,notsw)
     end
     tp[#tp+1] = string.char(n)
   end
-  --[[if not notsw then
-  for I = 1, #tp-1 do
-    if doThis(I*I+#x, getN(#ench.key)*I+I+#x+2) then
-      local tmp = tp[I]
-      tp[I] = tp[I+1]
-      tp[I+1] = tmp
-    end
-  end end--]]
   return string.act(tp)
 end
 
@@ -82,7 +74,7 @@ function ench.enchnumber(n)
     --print(string.char(x))
   until n == 0
   
-  tmp = ench.ench(tmp,true)
+  tmp = ench.ench(tmp)
   local out = 0
   for i = 1, #tmp do
     out = out * 256
@@ -129,4 +121,25 @@ function ench.enchtable(t)
   end
   
   return output
+end
+
+function ench.multi(msg, keys)
+  local t = ench.key
+  for _,v in pairs(keys) do
+    ench.key = v
+    msg = ench.ench(msg)
+  end
+  ench.key = t
+  return msg
+end
+
+function ench.multigen(size,minlen,maxlen)
+  local out = {}
+  for i = 1, size do
+    out[i] = ""
+    for j = 1, math.random(minlen,maxlen) do
+      out[i] = out[i]..string.char(math.random(0,255))
+    end
+  end
+  return out
 end

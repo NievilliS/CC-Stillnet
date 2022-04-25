@@ -16,7 +16,7 @@ file.close()
 
 if ver then
   if tonumber(ver) > tonumber(tver) then
-    print"New Stillnet version available!\nRun Stillnet/update.lua to update"
+    print"New Stillnet version available!\nRun Stillnet/install-stillnet.lua to update"
     sleep(3) --Sleep to make it annoying to wait
   end
 end
