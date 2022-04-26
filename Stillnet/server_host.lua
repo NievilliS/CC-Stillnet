@@ -109,7 +109,7 @@ local function parse(raw)
   
   --Receive encrypted session and key
   if raw[1].motive == kConf.keywords_session_t and serverChache.connected[raw[2]] then
-    if raw[4] == tConf.sid
+    if raw[4] == tConf.sID
 	  and raw[1].os == serverChache.connected[raw[2]] then
 	  if serverChache.delete[raw[2]] then
 	    return {motive=kConf.keywords_session_t,id=raw[2],os=raw[1].os,sessionEnch=raw[1].session}
@@ -181,6 +181,7 @@ function() while true do
   --Client gives session
   if d.motive == kConf.keywords_session_t then
 	serverChache.session[d.id] = ench.hellmanDench(hostKeys.private, d.sessionEnch)
+	print(serverChache.session[d.id])
 	serverChache.keys[d.id] = serverChache.session[d.id]
 	send(tConf.sID,d.id,{motive=kConf.keywords_ack,session=serverChache.session[d.id]})
   end

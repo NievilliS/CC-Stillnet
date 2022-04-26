@@ -1,3 +1,5 @@
+--test_client.lua
+
 local kConf = config.load(".client.conf",true)
 kConf.keywords_request = kConf.keywords_request or "conReq"
 kConf.keywords_refresh = kConf.keywords_refresh or "conRefr"
@@ -39,7 +41,8 @@ m:transmit(sid,kConf.modemBroadcastID,{motive=kConf.keywords_request,os=os.getCo
 local function generateSession(restrict)
 	local out = ""
 	for i = 1, math.random(8,16) do
-		out = out .. restrict[math.random(1,#restrict)]
+		local h = math.random(1,#restrict)
+		out = out .. restrict:sub(h,h)
 	end
 	return out
 end
@@ -65,12 +68,14 @@ if st[1].motive then
 		error("No server available")
 	end
 	
+	ench.key = session
+	st[1] = ench.enchtable(st[1])
+	
 	if st[1].motive then
-		if st[1].motive == keywords_ack then
+		if st[1].motive == kConf.keywords_ack then
 			if st[1].session ~= session then
 				error("session error")
 			end
-			ench.key = st[1].key
 			m:transmit(sid,hid,ench.enchtable{motive=kConf.keywords_refresh,os=os.getComputerID(),session=session})
 			print("Connected!")
 		else
