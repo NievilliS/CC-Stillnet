@@ -1,10 +1,11 @@
 --#### Server Hosting
 _G.gstream = {}
+local tArgs = {...}
 
 --Load Configuration
 local tConf = config.load(".server.conf",true)
 tConf.sessionFormat = tConf.sessionFormat or "char"
-tConf.sID = (tConf.sID or os.getComputerID())+0
+tConf.sID = (tArgs[1] or tConf.sID or os.getComputerID())+0
 tConf.reqTimeout = (tConf.reqTimeout or 1)+0
 tConf.timeout = (tConf.timeout or 10)+0
 tConf.deleteTime = (tConf.deleteTime or 5)+0
@@ -13,6 +14,7 @@ tConf.doEnch = (tConf.doEnch or 1)+0
 local kConf = config.load(".client.conf",true)
 kConf.keywords_request = kConf.keywords_request or "conReq"
 kConf.keywords_refresh = kConf.keywords_refresh or "conRefr"
+kConf.keywords_session_t = kConf.keywords_session_t or "sessionTransfer"
 kConf.keywords_ack = kConf.keywords_ack or "ack"
 kConf.keywords_refuse = kConf.keywords_refuse or "refuse"
 kConf.keywords_timeout = kConf.keywords_timeout or "timeout"
@@ -31,19 +33,20 @@ local serverChache = {
   session = {}
 }
 
+term.clear()
+term.setCursorPos(1,1)
+
 --Encryption
-local hostkey = "                "
+local hostKeys = {}
 if tConf.doEnch then
-  ench.key = hostkey
-  ench.gkey()
-  hostkey = ench.key
   serverChache.keys = {}
+  print"Generating keys..."
+  hostKeys.private, hostKeys.public, hostKeys.available = ench.hellmanFullGen()
 end
 
 --Open desired modem
-local tArgs = {...}
 local server
-if not tArgs[2] and not tConf.modemDir then
+if not tArgs[2] and not kConf.modemDir then
   for _,v in pairs(peripheral.getNames()) do
     if peripheral.getType(v) == "modem" then
       server = stillnet:new{name=v,modem=peripheral.wrap(v)}
@@ -53,7 +56,7 @@ if not tArgs[2] and not tConf.modemDir then
     end
   end
 else
-  server = stillnet:scan()[tArgs[2] or tConf.modemDir]
+  server = stillnet:scan()[tArgs[2] or kConf.modemDir]
 end
 
 if not server then error"No modem found!"end
@@ -104,6 +107,18 @@ local function parse(raw)
     end
   end
   
+  --Receive encrypted session and key
+  if raw[1].motive == kConf.keywords_session_t and serverChache.connected[raw[2]] then
+    if raw[4] == tConf.sid
+	  and raw[1].os == serverChache.connected[raw[2]] then
+	  if serverChache.delete[raw[2]] then
+	    return {motive=kConf.keywords_session_t,id=raw[2],os=raw[1].os,sessionEnch=raw[1].session}
+	  end
+	  return {motive=kConf.keywords_invalid}
+	end
+    return {motive=kConf.keywords_invalid}
+  end
+  
   if tConf.doEnch then
 	--Any point below requires encryption if enabled
 	if not serverChache.keys[raw[2]] then
@@ -111,7 +126,6 @@ local function parse(raw)
 	end
 	ench.key = serverChache.keys[raw[2]]
 	raw[1] = ench.enchtable(raw[1])
-	ench.key = hostkey
   end
   
   --Connection refresh, disconnect if gotten invalidly
@@ -143,7 +157,6 @@ local function send(sid,id,msg)
 	if tConf.doEnch and serverChache.keys[id] then
 		ench.key = serverChache.keys[id]
 		server:transmit(sid,id,ench.enchtable(msg))
-		ench.key = hostkey
 	else
 		server:transmit(sid,id,msg)
 	end
@@ -158,14 +171,18 @@ function() while true do
   
   --Connection request via broadcast
   if d.motive == kConf.keywords_request then
-    local session = generateSession()
-    server:transmit(tConf.sID,d.id,{motive=kConf.keywords_ack,session=session,doEnch=tConf.doEnch,key=session})
-	pushStream("#lime#ID Connected:\n sn-id: "..d.id.."\n os-id: "..d.os.."\n sess.: "..session)
+    server:transmit(tConf.sID,d.id,{motive=kConf.keywords_ack,public_key=hostKeys.public,doEnch=tConf.doEnch,restrict=hostKeys.available})
+	pushStream("#lime#ID Connected:\n sn-id: "..d.id.."\n os-id: "..d.os)
     
     serverChache.connected[d.id] = d.os
     serverChache.delete[d.id] = os.startTimer(tConf.reqTimeout)
-    serverChache.session[d.id] = session
-	serverChache.keys[d.id] = session
+  end
+  
+  --Client gives session
+  if d.motive == kConf.keywords_session_t then
+	serverChache.session[d.id] = ench.hellmanDench(hostKeys.private, d.sessionEnch)
+	serverChache.keys[d.id] = serverChache.session[d.id]
+	send(tConf.sID,d.id,{motive=kConf.keywords_ack,session=serverChache.session[d.id]})
   end
   
   --Connection refuse

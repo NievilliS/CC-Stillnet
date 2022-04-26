@@ -20,6 +20,7 @@ end
 --Load Libraries
 shell.run"Stillnet/config.lua"
 shell.run"Stillnet/ench.lua"
+shell.run'Stillnet/hellman.lua'
 
 --Global init
 _G.stillnet = {}
