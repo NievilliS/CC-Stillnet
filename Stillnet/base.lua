@@ -1,8 +1,9 @@
 --Check version
 local vurl = "https://raw.githubusercontent.com/NievilliS/CC-Stillnet/master/Stillnet/version"
 local httpinst = http.get(vurl)
+local ver
 if httpinst then
-  local ver = httpinst.readAll()
+  ver = httpinst.readAll():gsub("[^0-9.]","")
   httpinst.close()
 end
 
@@ -13,7 +14,7 @@ file.close()
 if ver then
   if tonumber(ver) > tonumber(tver) then
     print"New Stillnet version available!\nRun Stillnet/install-stillnet.lua to update"
-    sleep(3) --Sleep to make it annoying to wait
+    sleep(1) --Sleep to make it annoying to wait
   end
 end
 
