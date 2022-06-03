@@ -1,2 +1,11 @@
 shell.run'Stillnet/base.lua'
 --shell.run'Stillnet/ench.lua'
+
+local fdel = fs.delete
+
+fs.delete = function(k)
+  printError("Please only delete in File explorer!")
+  return false
+end
+
+fs.rawDel = fdel

@@ -1,7 +1,3 @@
---config.lua
-
---config.lua
-
 --Config API
 _G.config = {}
 
@@ -30,8 +26,8 @@ function config.append(path,cname,cval)
   if type(path) ~= "string" or type(cname) ~= "string" or not ({string=1,number=1})[type(cval)] then
     error"require path, string, string/number"
   end
-  if not cname:match"^[%w_-.]+$" then
-    error("invalid character in param 2: \""..cname:match("[^%w_-.]").."\"")
+  if not cname:match"^[%w_.-]+$" then
+    error("invalid character in param 2: \""..cname:match("[^%w_.-]").."\"")
   end
   
   local tDat = config.load(path,true)
@@ -60,7 +56,7 @@ function config.load(path,nullable)
   file.close()
   
   for i = 1, #tDat do
-    local ind = tDat[i]:match"^([%w_-.]+)%:"
+    local ind = tDat[i]:match"^([%w_.-]+)%:"
     if ind then
       tDat[ind] = tDat[i]:match"[^:]+$"
     end
