@@ -9,6 +9,17 @@ kConf.keywords_refuse = kConf.keywords_refuse or "refuse"
 kConf.keywords_timeout = kConf.keywords_timeout or "timeout"
 kConf.keywords_invalid = kConf.keywords_invalid or "invalid"
 kConf.keywords_disconnect = kConf.keywords_disconnect or "disc"
+kConf.keywords_forward = kConf.keywords_forward or "forward"
+kConf.keywords_setname = kConf.keywords_setname or "setname"
+kConf.keywords_hasname = kConf.keywords_hasname or "hasname"
+kConf.setname_ae = kConf.setname_ae or "setn_ae"
+kConf.setname_success = kConf.setname_success or "setn_sc"
+kConf.forward_noname = kConf.forward_noname or "fwrd_nil"
+kConf.forward_ack = kConf.forward_ack or "fwrd_ack"
+kConf.forward_deny = kConf.forward_deny or "fwrd_dny"
+kConf.forward_respond = kConf.forward_respond or "fwrd_res"
+kConf.forward_request = kConf.forward_request or "fwrd_req"
+kConf.forward_notarget = kConf.forward_notarget or "fwrd_ntg"
 kConf.modemBroadcastID = (kConf.modemBroadcastID or "65534")+0
 config.save(".client.conf",kConf,true)
 
@@ -90,25 +101,84 @@ if st[1].motive then
   end
 end
 
+local function send(t)
+	m:transmit(sid,hid,ench.enchtable(t))
+end
+
+parallel.waitForAny(function()
 while true do
   local msg = m:receive(sid,hid)
-  
-  for k,v in pairs(msg) do
-    print(tostring(k).." = "..tostring(v))
-  end
-  
   msg = ench.enchtable(msg)
   if msg.motive == kConf.keywords_disconnect then
-    print("Disconnected.")
+    print"Disconnected."
+	m:close(sid)
     return
   end
   if msg.motive == kConf.keywords_ack then
-    print("Ack.")
+    --print("Ack.")
   end
   if msg.motive == kConf.keywords_timeout then
     ench.key = msg.key
-    print(tostring(msg.key))
-    m:transmit(sid,hid,ench.enchtable{motive=kConf.keywords_refresh,os=os.getComputerID(),session=session})
-    print("Timeout.")
+    send{motive=kConf.keywords_refresh,os=os.getComputerID(),session=session}
+    --print("Timeout.")
+  end
+  if msg.motive == kConf.keywords_hasname then
+    if msg.result then
+	  print"Name exists!"
+	else
+	  print"Name does not exist."
+	end
+  end
+  if msg.motive == kConf.keywords_setname then
+    if msg.result == kConf.setname_ae then
+	  print"Can't choose this name as it already exists."
+	else
+	  print"Name changed!"
+	end
+  end
+  if msg.motive == kConf.keywords_forward then
+    if msg.result == kConf.forward_ack then
+	  local name = msg.from or "server itself"
+	  print("Acknowledged forward by "..name.." with "..tostring(msg.packet))
+	elseif msg.result == kConf.forward_deny then
+	  local name = msg.from or "server itself"
+	  print("Forward denied by "..name.." with "..tostring(msg.packet))
+	elseif msg.result == kConf.forward_noname then
+	  print"Cannot forward without a name!"
+	elseif msg.result == kConf.forward_notarget then
+	  print"This target does not exist!"
+	elseif msg.result == kConf.forward_request then
+	  print(msg.from.." has requested with "..tostring(msg.packet))
+	elseif msg.result == kConf.forward_respond then
+	  print(msg.from.." has responded with "..tostring(msg.packet))
+	else
+	  print"Invalid forward received"
+	end
   end
 end
+end,function()
+while true do
+  local e = read()
+  if e:match"^q" then
+    send{motive=kConf.keywords_disconnect,os=os.getComputerID(),session=session}
+  end
+  if e:match"^h .+" then
+    send{motive=kConf.keywords_hasname,os=os.getComputerID(),session=session,name=e:match("^h (.+)")}
+  end
+  if e:match"^s " then
+    send{motive=kConf.keywords_setname,os=os.getComputerID(),session=session,name=e:match("^s (.+)")}
+  end
+  if e:match"^f [^ ]+ [^ ]+ .+" then
+    local name = e:match"^f ([^ ]+)"
+	local packet_string = e:match"^f [^ ]+ [^ ]+ (.+)"
+	local ftype = e:match"^f [^ ]+ ([^ ]+)"
+	if not kConf["forward_"..ftype] then
+	  print"No such type!"
+	else
+	  send{motive=kConf.keywords_forward,os=os.getComputerID(),session=session,name=name,packet=packet_string,result=kConf["forward_"..ftype]}
+	end
+  elseif e:match"^f" then
+    print"Usage:\n f <name> <packet_string> <type>"
+  end
+end
+end)

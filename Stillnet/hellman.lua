@@ -1,4 +1,6 @@
-local function hta(h)
+local hellmanTools = {}
+ench.hellmanTools = hellmanTools
+function hellmanTools.hmKey_to_array(h)
   local out = {}
   for i = 1,8 do
     out[i] = h:sub(i):byte()
@@ -10,7 +12,7 @@ local function hta(h)
   return out
 end
 
-local function ath(a)
+function hellmanTools.array_to_hmKey(a)
   local out = ""
   for i = 1,8 do
     out = out .. string.char(a[i])
@@ -21,7 +23,7 @@ local function ath(a)
   return out
 end
 
-local function sort(a)
+function hellmanTools.bubblesort(a)
   for j = 1, #a do
     for i = 1, #a-j do
       if a[i] > a[i+1] then
@@ -34,8 +36,15 @@ local function sort(a)
   return a
 end
 
-local function isPrime(n)
-  for i = 3, n-1 do
+function hellmanTools.isPrime(n)
+  n = (n > 0 and n) or -n
+  if i < 2 then
+    return false
+  end
+  if i == 2 then
+    return true
+  end
+  for i = 2, n-1 do
     if n % i == 0 then
       return false
     end
@@ -66,31 +75,31 @@ function ench.hellmanPrivate()
     end
   end
   
-  out = sort(out)
+  out = hellmanTools.bubblesort(out)
   out.n = math.random(15,200)
   repeat
     out.m = math.random(50,255)
-  until isPrime(out.m)
+  until hellmanTools.isPrime(out.m)
   
   --N
   if getN(out.n,out.m) == -1 then
     return ench.hellmanPrivate()
   end
   
-  return ath(out)
+  return hellmanTools.array_to_hmKey(out)
 end
 
 function ench.hellmanPublic(priv)
   local out = {}
-  priv = hta(priv)
+  priv = hellmanTools.hmKey_to_array(priv)
   for i = 1, 8 do
     out[i] = (priv[i]*priv.n) % priv.m
   end
-  return ath(out)
+  return hellmanTools.array_to_hmKey(out)
 end
 
 function ench.hellmanEnch(publ,dat)
-  publ = hta(publ)
+  publ = hellmanTools.hmKey_to_array(publ)
   local ndat = {}
   for i = 1, #dat do
     ndat[i] = dat:sub(i):byte()
@@ -107,7 +116,7 @@ function ench.hellmanEnch(publ,dat)
 end
 
 function ench.hellmanDench(priv,dat)
-  priv = hta(priv)
+  priv = hellmanTools.hmKey_to_array(priv)
   local N = getN(priv.n,priv.m)
   
   for i = 1, #dat do
@@ -171,6 +180,8 @@ end
 function ench.hellmanGenerateWithin(c,len)
 	local out = ""
 	for _ = 1, len do
-		out = out .. c:sub(math.random(1,#c))
+		local h = math.random(1,#c)
+		out = out .. c:sub(h,h)
 	end
+	return out
 end

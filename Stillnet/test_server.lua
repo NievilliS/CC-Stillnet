@@ -1,3 +1,5 @@
+--server_host.lua
+
 --#### Server Hosting
 _G.gstream = {}
 local tArgs = {...}
@@ -20,6 +22,17 @@ kConf.keywords_refuse = kConf.keywords_refuse or "refuse"
 kConf.keywords_timeout = kConf.keywords_timeout or "timeout"
 kConf.keywords_invalid = kConf.keywords_invalid or "invalid"
 kConf.keywords_disconnect = kConf.keywords_disconnect or "disc"
+kConf.keywords_forward = kConf.keywords_forward or "forward"
+kConf.keywords_setname = kConf.keywords_setname or "setname"
+kConf.keywords_hasname = kConf.keywords_hasname or "hasname"
+kConf.setname_ae = kConf.setname_ae or "setn_ae"
+kConf.setname_success = kConf.setname_success or "setn_sc"
+kConf.forward_noname = kConf.forward_noname or "fwrd_nil"
+kConf.forward_ack = kConf.forward_ack or "fwrd_ack"
+kConf.forward_deny = kConf.forward_deny or "fwrd_dny"
+kConf.forward_respond = kConf.forward_respond or "fwrd_res"
+kConf.forward_request = kConf.forward_request or "fwrd_req"
+kConf.forward_notarget = kConf.forward_notarget or "fwrd_ntg"
 kConf.modemBroadcastID = (kConf.modemBroadcastID or "65534")+0
 
 config.save(".server.conf",tConf,true)
@@ -30,7 +43,9 @@ local serverChache = {
   connected = {},
   timeout = {},
   delete = {},
-  session = {}
+  session = {},
+  names = {},
+  names_inv = {}
 }
 
 term.clear()
@@ -146,7 +161,35 @@ local function parse(raw)
 	  and raw[1].os == serverChache.connected[raw[2]]
 	  and raw[1].session == serverChache.session[raw[2]] then
 		return {motive=kConf.keywords_disconnect,id=raw[2],session=serverChache.session[raw[2]]}
-	  end
+	end
+  end
+  
+  --Hasname check, serverChache.names[name] != nil bounces back to client
+  if raw[1].motive == kConf.keywords_hasname and serverChache.connected[raw[2]] then
+    if raw[4] == tConf.sID
+	  and raw[1].os == serverChache.connected[raw[2]]
+	  and raw[1].session == serverChache.session[raw[2]] then
+	    return {motive=kConf.keywords_hasname,id=raw[2],session=serverChache.session[raw[2]],name=raw[1].name}
+	end
+  end
+  
+  --Setname, or rather, give alias that other clients have to use when forwarding packets (making it required for intercommunication)
+  if raw[1].motive == kConf.keywords_setname and serverChache.connected[raw[2]] then
+    if raw[4] == tConf.sID
+	  and raw[1].os == serverChache.connected[raw[2]]
+	  and raw[1].session == serverChache.session[raw[2]] then
+	    return {motive=kConf.keywords_setname,id=raw[2],session=serverChache.session[raw[2]],name=raw[1].name}
+	end
+  end
+  
+  --Forwards a packet to the name's ID
+  if raw[1].motive == kConf.keywords_forward and serverChache.connected[raw[2]] then
+    if raw[4] == tConf.sID
+	  and raw[1].os == serverChache.connected[raw[2]]
+	  and raw[1].session == serverChache.session[raw[2]]
+	  and raw[1].packet and raw[1].name and raw[1].result then
+	    return {motive=kConf.keywords_forward,id=raw[2],session=serverChache.session[raw[2]],name=raw[1].name,packet=raw[1].packet,result=raw[1].result}
+	end
   end
   
   return {motive=kConf.keywords_invalid}
@@ -196,7 +239,7 @@ function() while true do
 	serverChache.delete[d.id] = nil
 	serverChache.timeout[d.id] = os.startTimer(tConf.timeout)
 	send(tConf.sID,d.id,{motive=kConf.keywords_ack,session=d.session})
-	pushStream("#gray#ID Refreshed:\n sn-id: "..d.id)
+	--pushStream("#gray#ID Refreshed:\n sn-id: "..d.id)
   end
   
   --Disconnect
@@ -206,7 +249,50 @@ function() while true do
 	serverChache.timeout[d.id] = nil
 	serverChache.session[d.id] = nil
 	serverChache.delete[d.id] = nil
+	if serverChache.names_inv[d.id] then
+	    serverChache.names[serverChache.names_inv[d.id]] = nil
+		serverChache.names_inv[d.id] = nil
+	  end
 	pushStream("#yellow#ID Disconnected:\n sn-id: "..d.id.."\n sess.: "..d.session)
+  end
+  
+  --Has name check, return true or false, but not 
+  if d.motive == kConf.keywords_hasname then
+    send(tConf.sID,d.id,{motive=kConf.keywords_hasname,session=d.session,result=serverChache.names[d.name] ~= nil})
+	pushStream("#yellow#ID "..d.id.." asked for \""..d.name.."\"")
+  end
+  
+  --First checks if the name already exists, then applies it, clears if d.name = nil
+  if d.motive == kConf.keywords_setname then
+    if d.name and serverChache.names[d.name] then
+	  send(tConf.sID,d.id,{motive=kConf.keywords_setname,session=d.session,result=kConf.setname_ae})
+	  pushStream("#red#ID "..d.id.." ae-bad setname attempt as \""..d.name.."\"")
+	else
+	  if serverChache.names_inv[d.id] then
+	    serverChache.names[serverChache.names_inv[d.id]] = nil
+	  end
+	  serverChache.names_inv[d.id] = d.name
+	  if d.name then
+	    serverChache.names[d.name] = d.id
+	  end
+	  send(tConf.sID,d.id,{motive=kConf.keywords_setname,session=d.session,result=kConf.setname_success})
+	  pushStream("#yellow#ID "..d.id.." setname as \""..tostring(d.name).."\"")
+	end
+  end
+  
+  --Packet transmission
+  if d.motive == kConf.keywords_forward then
+    if not serverChache.names_inv[d.id] then
+	  send(tConf.sID,d.id,{motive=kConf.keywords_forward,session=d.session,result=kConf.forward_noname})
+	  pushStream("#red#ID "..d.id.." bad forward without own name")
+	elseif not serverChache.names[d.name] then
+	  send(tConf.sID,d.id,{motive=kConf.keywords_forward,session=d.session,result=kConf.forward_notarget})
+	  pushStream("#red#ID "..d.id.." bad forward trying at \""..d.name.."\"")
+	else
+	  send(tConf.sID,d.id,{motive=kConf.keywords_forward,session=d.session,result=kConf.forward_ack})
+	  send(tConf.sID,serverChache.names[d.name],{motive=kConf.keywords_forward,session=serverChache.session[serverChache.names[d.name]],packet=d.packet,from=serverChache.names_inv[d.id],to=d.name,result=d.result})
+	  pushStream("#yellow#ID "..d.id.." forwarding to \""..d.name.."\" with "..d.result)
+	end
   end
   
 end end,
@@ -218,7 +304,7 @@ function() while true do
   for k,v in pairs(serverChache.timeout) do
     if v == t then
 	  local nk = generateSession()
-	  pushStream("#gray#Timeout trig:\n sn-id: "..k)
+	  --pushStream("#gray#Timeout trig:\n sn-id: "..k)
 	  send(tConf.sID,k,{motive=kConf.keywords_timeout,session=serverChache.session[k],key=nk})
 	  serverChache.keys[k] = nk
 	  serverChache.delete[k] = os.startTimer(tConf.deleteTime)
@@ -233,6 +319,10 @@ function() while true do
 	  serverChache.connected[k] = nil
 	  serverChache.timeout[k] = nil
 	  serverChache.session[k] = nil
+	  if serverChache.names_inv[k] then
+	    serverChache.names[serverChache.names_inv[k]] = nil
+		serverChache.names_inv[k] = nil
+	  end
 	  table.insert(delind, k)
 	end
   end
