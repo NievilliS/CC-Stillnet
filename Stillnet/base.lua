@@ -22,6 +22,7 @@ end
 shell.run"Stillnet/config.lua"
 shell.run"Stillnet/ench.lua"
 shell.run'Stillnet/hellman.lua'
+--shell.run'Stillnet/ssh-api.lua'
 
 --Global init
 _G.stillnet = {}

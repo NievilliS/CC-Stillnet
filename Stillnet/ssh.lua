@@ -27,7 +27,7 @@ config.save(".client.conf",kConf,true)
 --Open desired modem
 local tArgs = {...}
 local m
-if not tArgs[2] and not kConf.modemDir then
+if not kConf.modemDir then
   for _,v in pairs(peripheral.getNames()) do
     if peripheral.getType(v) == "modem" then
       m = stillnet:new{name=v,modem=peripheral.wrap(v)}
@@ -37,12 +37,12 @@ if not tArgs[2] and not kConf.modemDir then
     end
   end
 else
-  m = stillnet:scan()[tArgs[2] or kConf.modemDir]
+  m = stillnet:scan()[kConf.modemDir]
 end
 _G.client = {}
 client.m = m
 
-local sid = tonumber(({...})[1] or os.getComputerID())
+local sid = tonumber(os.getComputerID())
 client.sid = sid
 
 m:open(sid)
@@ -113,18 +113,28 @@ client.hid = hid
 client.session = session
 
 local function send(t)
+	t.os = os.getComputerID()
+	t.session = session
 	m:transmit(sid,hid,ench.enchtable(t))
+end
+
+send{motive=kConf.keywords_hasname,name=tArgs[1]}
+local msg = ench.enchtable(m:receive(sid,hid))
+if msg.motive ~= kConf.keywords_hasname or not msg.result then
+  send{motive=kConf.keywords_disconnect}
+	m:close(sid)
+  error"Unreachable name! Disconnected."
 end
 
 local s_name = kConf.std_name
 if kConf.std_name then
-  send{motive=kConf.keywords_setname,os=os.getComputerID(),session=session,name=kConf.std_name}
+  send{motive=kConf.keywords_setname,name=kConf.std_name}
   local msg = ench.enchtable(m:receive(sid,hid))
   if msg.motive ~= kConf.keywords_setname or msg.result ~= kConf.setname_success then
     local addition = 0
     local s = true
     while s do
-      send{motive=kConf.keywords_setname,os=os.getComputerID(),session=session,name=kConf.std_name..addition}
+      send{motive=kConf.keywords_setname,name=kConf.std_name..addition}
 	  local msg = ench.enchtable(m:receive(sid,hid))
       if msg.motive == kConf.keywords_setname and msg.result == kConf.setname_success then
 		s = false
@@ -135,9 +145,52 @@ if kConf.std_name then
   end
 else
   s_name = ""..math.random(0,1000000)
-  send{motive=kConf.keywords_setname,os=os.getComputerID(),session=session,name=s_name}
+  send{motive=kConf.keywords_setname,name=s_name}
 end
 print("Name set to "..s_name)
+
+--SSH STUFF
+--[[
+To establish connection: Send request to target, get positive result.
+Read password, send pw request
+Run everything
+--]]
+
+send{motive=kConf.keywords_forward,name=tArgs[1],result=kConf.forward_request,packet=ssh.key.request}
+m:receive(sid,hid)
+local msg = ench.enchtable(m:receive(sid,hid))
+if msg.motive == kConf.keywords_forward then
+  if msg.from == tArgs[1] and msg.to == s_name then
+    if msg.packet == ssh.key.request_f then
+	  error"Denied by target!"
+	end
+  else
+    error"Invalid name(s)"
+  end
+else
+  error"Invalid keyword received"
+end
+--Got positive result
+term.clear()
+term.setCursorPos(1,1)
+term.write(tArgs[1].."'s password: ")
+local PASSWORD = io.read("*")
+
+send{motive=kConf.keywords_forward,name=tArgs[1],result=kConf.forward_request,packet=ssh.key.connect_pw..PASSWORD}
+m:receive(sid,hid)
+local msg = ench.enchtable(m:receive(sid,hid))
+if msg.motive == kConf.keywords_forward then
+  if msg.from == tArgs[1] and msg.to == s_name then
+    if msg.packet == ssh.key.request_f then
+	  error"Incorrect password!"
+	end
+  else
+    error"Invalid name(s)"
+  end
+else
+  error"Invalid keyword received"
+end
+
 
 local time_last_received = os.time()
 parallel.waitForAny(function()
@@ -223,7 +276,7 @@ while true do
 	  send{motive=kConf.keywords_forward,os=os.getComputerID(),session=session,name=name,packet=packet_string,result=kConf["forward_"..ftype]}
 	end
   elseif e:match"^f" then
-    print"Usage:\n f <name> <type> <packet_string>"
+    print"Usage:\n f <name> <packet_string> <type>"
   end
 end
 end)

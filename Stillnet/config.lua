@@ -14,7 +14,7 @@ function config.save(path, tDat, forceOverwrite)
   local file = fs.open(path,"w")
   local sDat = ""
   for k,v in pairs(tDat) do
-    sDat = sDat..k..":"..v.."\n"
+    sDat = sDat..k..":"..tostring(v).."\n"
   end
   sDat = sDat:gsub("\n$","")
   file.write(sDat)

@@ -12,6 +12,19 @@ tConf.reqTimeout = (tConf.reqTimeout or 1)+0
 tConf.timeout = (tConf.timeout or 10)+0
 tConf.deleteTime = (tConf.deleteTime or 5)+0
 tConf.doEnch = (tConf.doEnch or 1)+0
+tConf.msg_IDCON = tConf.msg_IDCON or "#lime#ID Connected<col><br> sn-id<col> <id><br> os-id<col> <os>"
+tConf.msg_UDISC = tConf.msg_UDISC or "#green#ID Disconnected<col><br> sn-id<col> <id>"
+tConf.msg_HASN = tConf.msg_HASN or "#orange#<q><sname><q> (<sid>) asked for <q><name><q> (<id>)"
+tConf.msg_SETN_ae = tConf.msg_SETN_ae or "#red#ID <id> ae-bad setname attempt as <q><name><q>"
+tConf.msg_SETN_success = tConf.msg_SETN_success or "#yellow#ID <id> setname as <q><name><q>"
+tConf.msg_FWRD_noname = tConf.msg_FWRD_noname or "#red#ID <id> bad forward without own name"
+tConf.msg_FWRD_notarget = tConf.msg_FWRD_notarget or "#red#ID <sname> (<id>) bad forward trying at <q><name><q>"
+tConf.msg_FORWARD = tConf.msg_FORWARD or "#orange#<q><sname><q> (<sid>) forwarding to <q><name><q> (<id>) with <res>"
+tConf.msg_DELTRIG = tConf.msg_DELTRIG or "#purple#<id> timed out, disconnected"
+tConf.msg_do_gray = (tConf.msg_do_gray or "false") == "true"
+tConf.msg_REFR = tConf.msg_REFR or "#gray#<id> refreshed"
+tConf.msg_TIMO = tConf.msg_TIMO or "#gray#<id> timeout trigger"
+tConf.msg_do_fwrd_res = (tConf.msg_do_fwrd_res or "false") == "true"
 
 local kConf = config.load(".client.conf",true)
 kConf.keywords_request = kConf.keywords_request or "conReq"
@@ -77,7 +90,7 @@ end
 if not server then error"No modem found!"end
 
 --Generator
-local function generateSession()
+local function generateKey()
   if tConf.sessionFormat == "char" then
     local sess = ""
     for i = 0, math.random(8,16) do
@@ -205,6 +218,18 @@ local function send(sid,id,msg)
 	end
 end
 
+local std_st_gsubs = {br="\n", q="\"", col=":"}
+local function streamtool(t)
+  local txt = t[1]
+  for k,v in pairs(t) do
+    txt = txt:gsub("<"..tostring(k)..">", tostring(v))
+  end
+  for k,v in pairs(std_st_gsubs) do
+    txt = txt:gsub("<"..tostring(k)..">", tostring(v))
+  end
+  pushStream(txt)
+end
+
 pushStream"#yellow#Launched"
 --Runtime
 parallel.waitForAny(
@@ -215,16 +240,14 @@ function() while true do
   --Connection request via broadcast
   if d.motive == kConf.keywords_request then
     server:transmit(tConf.sID,d.id,{motive=kConf.keywords_ack,public_key=hostKeys.public,doEnch=tConf.doEnch,restrict=hostKeys.available})
-	pushStream("#lime#ID Connected:\n sn-id: "..d.id.."\n os-id: "..d.os)
-    
     serverChache.connected[d.id] = d.os
     serverChache.delete[d.id] = os.startTimer(tConf.reqTimeout)
+	streamtool{tConf.msg_IDCON, id=d.id, os=d.os}
   end
   
   --Client gives session
   if d.motive == kConf.keywords_session_t then
 	serverChache.session[d.id] = ench.hellmanDench(hostKeys.private, d.sessionEnch)
-	print(serverChache.session[d.id])
 	serverChache.keys[d.id] = serverChache.session[d.id]
 	send(tConf.sID,d.id,{motive=kConf.keywords_ack,session=serverChache.session[d.id]})
   end
@@ -239,7 +262,7 @@ function() while true do
 	serverChache.delete[d.id] = nil
 	serverChache.timeout[d.id] = os.startTimer(tConf.timeout)
 	send(tConf.sID,d.id,{motive=kConf.keywords_ack,session=d.session})
-	--pushStream("#gray#ID Refreshed:\n sn-id: "..d.id)
+	streamtool{tConf.msg_REFR, id=d.id}
   end
   
   --Disconnect
@@ -253,20 +276,20 @@ function() while true do
 	    serverChache.names[serverChache.names_inv[d.id]] = nil
 		serverChache.names_inv[d.id] = nil
 	  end
-	pushStream("#yellow#ID Disconnected:\n sn-id: "..d.id.."\n sess.: "..d.session)
+	streamtool{tConf.msg_UDISC, id=d.id}
   end
   
   --Has name check, return true or false, but not 
   if d.motive == kConf.keywords_hasname then
     send(tConf.sID,d.id,{motive=kConf.keywords_hasname,session=d.session,result=serverChache.names[d.name] ~= nil})
-	pushStream("#yellow#ID "..d.id.." asked for \""..d.name.."\"")
+	streamtool{tConf.msg_HASN, sname=serverChache.names_inv[d.id], sid=d.id, name=d.name, id=serverChache.names[d.name]}
   end
   
   --First checks if the name already exists, then applies it, clears if d.name = nil
   if d.motive == kConf.keywords_setname then
     if d.name and serverChache.names[d.name] then
 	  send(tConf.sID,d.id,{motive=kConf.keywords_setname,session=d.session,result=kConf.setname_ae})
-	  pushStream("#red#ID "..d.id.." ae-bad setname attempt as \""..d.name.."\"")
+	  streamtool{tConf.msg_SETN_ae, id=d.id, name=d.name}
 	else
 	  if serverChache.names_inv[d.id] then
 	    serverChache.names[serverChache.names_inv[d.id]] = nil
@@ -276,7 +299,7 @@ function() while true do
 	    serverChache.names[d.name] = d.id
 	  end
 	  send(tConf.sID,d.id,{motive=kConf.keywords_setname,session=d.session,result=kConf.setname_success})
-	  pushStream("#yellow#ID "..d.id.." setname as \""..tostring(d.name).."\"")
+	  streamtool{tConf.msg_SETN_success, id=d.id, name=d.name}
 	end
   end
   
@@ -284,14 +307,16 @@ function() while true do
   if d.motive == kConf.keywords_forward then
     if not serverChache.names_inv[d.id] then
 	  send(tConf.sID,d.id,{motive=kConf.keywords_forward,session=d.session,result=kConf.forward_noname})
-	  pushStream("#red#ID "..d.id.." bad forward without own name")
+	  streamtool{tConf.msg_FWRD_noname, id=d.id}
 	elseif not serverChache.names[d.name] then
 	  send(tConf.sID,d.id,{motive=kConf.keywords_forward,session=d.session,result=kConf.forward_notarget})
-	  pushStream("#red#ID "..d.id.." bad forward trying at \""..d.name.."\"")
+	  streamtool{tConf.msg_FWRD_notarget, id=d.id, sname=serverChache.names_inv[d.id], name=d.name}
 	else
 	  send(tConf.sID,d.id,{motive=kConf.keywords_forward,session=d.session,result=kConf.forward_ack})
 	  send(tConf.sID,serverChache.names[d.name],{motive=kConf.keywords_forward,session=serverChache.session[serverChache.names[d.name]],packet=d.packet,from=serverChache.names_inv[d.id],to=d.name,result=d.result})
-	  pushStream("#yellow#ID "..d.id.." forwarding to \""..d.name.."\" with "..d.result)
+	  if tConf.msg_do_fwrd_res or not d.result == kConf.forward_respond then
+	    streamtool{tConf.msg_FORWARD, sname=serverChache.names_inv[d.id], sid=d.id, name=d.name, id=serverChache.names[d.name], res=d.result}
+	  end
 	end
   end
   
@@ -303,8 +328,8 @@ function() while true do
   
   for k,v in pairs(serverChache.timeout) do
     if v == t then
-	  local nk = generateSession()
-	  --pushStream("#gray#Timeout trig:\n sn-id: "..k)
+	  local nk = generateKey()
+	  pushStream(tConf.msg_TIMO:gsub("<id>",tostring(k)))
 	  send(tConf.sID,k,{motive=kConf.keywords_timeout,session=serverChache.session[k],key=nk})
 	  serverChache.keys[k] = nk
 	  serverChache.delete[k] = os.startTimer(tConf.deleteTime)
@@ -314,7 +339,7 @@ function() while true do
   local delind = {}
   for k,v in pairs(serverChache.delete) do
 	if v == t then
-	  pushStream("#red#Delete trig:\n sn-id: "..k)
+	  pushStream(tConf.msg_DELTRIG:gsub("<id>",tostring(k)))
 	  send(tConf.sID,k,{motive=kConf.keywords_disconnect,session=serverChache.session[k]})
 	  serverChache.connected[k] = nil
 	  serverChache.timeout[k] = nil
@@ -339,7 +364,9 @@ function() while true do
 		if x then
 			term.setTextColor(colors[x])
 		end
-		print(({gstream[#gstream]:gsub("^#[^#]+#","")})[1])
+		if tConf.msg_do_gray or not gstream[#gstream]:match"^#gray#" then
+			print(({gstream[#gstream]:gsub("^#[^#]+#","")})[1])
+		end
 		gstream[#gstream] = nil
 	end
 end end
