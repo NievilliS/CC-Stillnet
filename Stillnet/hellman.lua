@@ -38,10 +38,10 @@ end
 
 function hellmanTools.isPrime(n)
   n = (n > 0 and n) or -n
-  if i < 2 then
+  if n < 2 then
     return false
   end
-  if i == 2 then
+  if n == 2 then
     return true
   end
   for i = 2, n-1 do
